@@ -20,3 +20,10 @@ class FileStorageContract(ARC4Contract):
         Retrieve file metadata for a given file_id.
         """
         return self.files[file_id]
+    @arc4.abimethod
+    def file_exists(self, file_id: Bytes) -> arc4.Bool:
+        """
+        Check if a file exists for the given file_id.
+        """
+        return arc4.Bool(file_id in self.files)
+
