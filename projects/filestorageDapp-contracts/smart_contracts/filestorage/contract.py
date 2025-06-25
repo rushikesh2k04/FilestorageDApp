@@ -14,3 +14,9 @@ class FileStorageContract(ARC4Contract):
         value = cid + b"|" + permissions
         self.files[file_id] = value
         return arc4.Bool(True)
+    @arc4.abimethod
+    def get_file(self, file_id: Bytes) -> Bytes:
+        """
+        Retrieve file metadata for a given file_id.
+        """
+        return self.files[file_id]
