@@ -1,8 +1,7 @@
 import { useWallet } from '@txnlab/use-wallet-react'
 import { useSnackbar } from 'notistack'
 import { useState } from 'react'
-import { FilestorageFactory } from '../contracts/Filestorage'
-import { OnSchemaBreak, OnUpdate } from '@algorandfoundation/algokit-utils/types/app'
+import { FileStorageContractClient } from '../contracts/FileStorageContract'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
 import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 
@@ -11,83 +10,71 @@ interface AppCallsInterface {
   setModalState: (value: boolean) => void
 }
 
+const APP_ID = 12345678 // Replace with your deployed App ID
+
 const AppCalls = ({ openModal, setModalState }: AppCallsInterface) => {
-  const [loading, setLoading] = useState<boolean>(false)
-  const [contractInput, setContractInput] = useState<string>('')
+  const [fileId, setFileId] = useState('')
+  const [cid, setCid] = useState('')
+  const [permissions, setPermissions] = useState('public')
+  const [loading, setLoading] = useState(false)
   const { enqueueSnackbar } = useSnackbar()
   const { transactionSigner, activeAddress } = useWallet()
 
-  const algodConfig = getAlgodConfigFromViteEnvironment()
-  const indexerConfig = getIndexerConfigFromViteEnvironment()
-  const algorand = AlgorandClient.fromConfig({
-    algodConfig,
-    indexerConfig,
-  })
-  algorand.setDefaultSigner(transactionSigner)
+  const callAddFile = async () => {
+    if (!fileId || !cid || !activeAddress) return
 
-  const sendAppCall = async () => {
     setLoading(true)
 
-    // Please note, in typical production scenarios,
-    // you wouldn't want to use deploy directly from your frontend.
-    // Instead, you would deploy your contract on your backend and reference it by id.
-    // Given the simplicity of the starter contract, we are deploying it on the frontend
-    // for demonstration purposes.
-    const factory = new FilestorageFactory({
-      defaultSender: activeAddress ?? undefined,
-      algorand,
-    })
-    const deployResult = await factory
-      .deploy({
-        onSchemaBreak: OnSchemaBreak.AppendApp,
-        onUpdate: OnUpdate.AppendApp,
-      })
-      .catch((e: Error) => {
-        enqueueSnackbar(`Error deploying the contract: ${e.message}`, { variant: 'error' })
-        setLoading(false)
-        return undefined
+    try {
+      const algodConfig = getAlgodConfigFromViteEnvironment()
+      const indexerConfig = getIndexerConfigFromViteEnvironment()
+      const algorand = AlgorandClient.fromConfig({ algodConfig, indexerConfig })
+      algorand.setDefaultSigner(transactionSigner)
+
+      const contract = new FileStorageContractClient({
+        resolveBy: 'id',
+        id: APP_ID,
+        sender: activeAddress,
+        algorand,
       })
 
-    if (!deployResult) {
-      return
+      await contract.add_file({ file_id: fileId, cid, permissions })
+      enqueueSnackbar('✅ File metadata stored!', { variant: 'success' })
+    } catch (err: any) {
+      enqueueSnackbar(`❌ Error: ${err.message}`, { variant: 'error' })
     }
 
-    const { appClient } = deployResult
-
-    const response = await appClient.send.hello({ args: { name: contractInput } }).catch((e: Error) => {
-      enqueueSnackbar(`Error calling the contract: ${e.message}`, { variant: 'error' })
-      setLoading(false)
-      return undefined
-    })
-
-    if (!response) {
-      return
-    }
-
-    enqueueSnackbar(`Response from the contract: ${response.return}`, { variant: 'success' })
     setLoading(false)
   }
 
   return (
     <dialog id="appcalls_modal" className={`modal ${openModal ? 'modal-open' : ''} bg-slate-200`}>
-      <form method="dialog" className="modal-box">
-        <h3 className="font-bold text-lg">Say hello to your Algorand smart contract</h3>
-        <br />
+      <form method="dialog" className="modal-box space-y-4">
+        <h3 className="font-bold text-lg">Manually Add File Metadata</h3>
+
         <input
           type="text"
-          placeholder="Provide input to hello function"
+          placeholder="File ID"
           className="input input-bordered w-full"
-          value={contractInput}
-          onChange={(e) => {
-            setContractInput(e.target.value)
-          }}
+          value={fileId}
+          onChange={(e) => setFileId(e.target.value)}
         />
-        <div className="modal-action ">
-          <button className="btn" onClick={() => setModalState(!openModal)}>
-            Close
-          </button>
-          <button className={`btn`} onClick={sendAppCall}>
-            {loading ? <span className="loading loading-spinner" /> : 'Send application call'}
+        <input
+          type="text"
+          placeholder="CID"
+          className="input input-bordered w-full"
+          value={cid}
+          onChange={(e) => setCid(e.target.value)}
+        />
+        <select className="select select-bordered w-full" value={permissions} onChange={(e) => setPermissions(e.target.value)}>
+          <option value="public">Public</option>
+          <option value="private">Private</option>
+        </select>
+
+        <div className="modal-action">
+          <button className="btn" onClick={() => setModalState(false)}>Close</button>
+          <button className="btn btn-primary" onClick={callAddFile} disabled={loading}>
+            {loading ? 'Submitting...' : 'Submit'}
           </button>
         </div>
       </form>
