@@ -1,24 +1,42 @@
-const { DataTypes } = require('sequelize')
-const sequelize = require('../config/db')
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
 
-const File = sequelize.define('File', {
-  fileId: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
+const File = sequelize.define(
+  'File',
+  {
+    fileId: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    cid: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    permissions: {
+      type: DataTypes.ENUM('public', 'private'),
+      allowNull: false,
+      defaultValue: 'public',
+    },
+    uploader: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
   },
-  cid: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  permissions: {
-    type: DataTypes.ENUM('public', 'private'),
-    defaultValue: 'public',
-  },
-  uploader: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-})
+  {
+    timestamps: true,       // automatically adds createdAt and updatedAt
+    underscored: true,      // snake_case for column names
+    tableName: 'files',     // explicit table name
+  }
+);
 
-module.exports = File
+module.exports = File;
