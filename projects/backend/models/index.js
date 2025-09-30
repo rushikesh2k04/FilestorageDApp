@@ -1,15 +1,19 @@
-const sequelize = require('../config/db')
-const File = require('./fileModel')
+const sequelize = require('../config/db');
+const File = require('./fileModel');
 
 const syncDatabase = async () => {
   try {
-    await sequelize.authenticate()
-    console.log('✅ MySQL connected')
-    await sequelize.sync() // Use { force: true } to reset
-    console.log('📦 Models synced')
-  } catch (error) {
-    console.error('❌ DB connection error:', error.message)
-  }
-}
+    await sequelize.authenticate();
+    console.log('✅ MySQL connected successfully');
 
-module.exports = { File, syncDatabase }
+    // Sync models
+    const syncOptions = process.env.NODE_ENV === 'development' ? { alter: true } : {};
+    await sequelize.sync(syncOptions);
+
+    console.log('📦 Models synced successfully');
+  } catch (error) {
+    console.error('❌ Database connection or sync error:', error);
+  }
+};
+
+module.exports = { File, syncDatabase };
