@@ -17,72 +17,66 @@ class FileStorageContract(ARC4Contract):
 
     @arc4.abimethod
     def add_file(self, file_id: Bytes, cid: Bytes, permissions: Bytes) -> arc4.Bool:
-        """
-        Add file metadata with CID and permissions. Only if file doesn't exist.
-        """
+        """Add file metadata with CID and permissions. Only if file doesn't exist."""
+        if not file_id or not cid or not permissions:
+            return arc4.Bool(False)
+
         if file_id in self.files:
             return arc4.Bool(False)
-        
-        # Validate inputs (optional, can adjust limits)
+
         if len(cid) > 256 or len(permissions) > 128:
             return arc4.Bool(False)
 
-        value = cid + b"|" + permissions
-        self.files[file_id] = value
+        self.files[file_id] = cid + b"|" + permissions
         self.owners[file_id] = Txn.sender
-        self.file_list[file_id] = b"1"  # just a placeholder to mark existence
+        self.file_list[file_id] = b"1"
 
-        Log.print(b"File added: " + file_id)
+        Log.print(f"File added: {file_id.decode()}" .encode())
         return arc4.Bool(True)
 
     @arc4.abimethod
     def get_file(self, file_id: Bytes) -> Bytes:
-        """
-        Get full metadata (CID|permissions) for the given file_id.
-        """
-        return self.files[file_id]
+        """Get full metadata (CID|permissions) for the given file_id."""
+        return self.files.get(file_id, b"")
 
     @arc4.abimethod
     def get_cid(self, file_id: Bytes) -> Bytes:
-        """
-        Return only the CID from stored metadata.
-        """
-        metadata = self.files[file_id]
+        """Return only the CID from stored metadata."""
+        metadata = self.files.get(file_id)
+        if not metadata:
+            return b""
         return metadata.split(b"|")[0]
 
     @arc4.abimethod
     def get_permissions(self, file_id: Bytes) -> Bytes:
-        """
-        Return only the permissions from stored metadata.
-        """
-        metadata = self.files[file_id]
+        """Return only the permissions from stored metadata."""
+        metadata = self.files.get(file_id)
+        if not metadata:
+            return b""
         return metadata.split(b"|")[1]
 
     @arc4.abimethod
     def update_file(self, file_id: Bytes, new_cid: Bytes, new_permissions: Bytes) -> arc4.Bool:
-        """
-        Update existing file metadata. Only owner can update.
-        """
+        """Update existing file metadata. Only owner can update."""
         if file_id not in self.files:
             return arc4.Bool(False)
 
-        owner = self.owners[file_id]
-        if Txn.sender != owner:
+        if Txn.sender != self.owners[file_id]:
             return arc4.Bool(False)
 
-        # Validate inputs
+        if not new_cid or not new_permissions:
+            return arc4.Bool(False)
+
         if len(new_cid) > 256 or len(new_permissions) > 128:
             return arc4.Bool(False)
 
         self.files[file_id] = new_cid + b"|" + new_permissions
-        Log.print(b"File updated: " + file_id)
+        Log.print(f"File updated: {file_id.decode()}".encode())
         return arc4.Bool(True)
 
     @arc4.abimethod
     def delete_file(self, file_id: Bytes) -> arc4.Bool:
-        """
-        Delete file metadata. Only owner can delete.
-        """
+        """Delete file metadata. Only owner can delete."""
         if file_id not in self.files:
             return arc4.Bool(False)
 
@@ -92,14 +86,13 @@ class FileStorageContract(ARC4Contract):
         del self.files[file_id]
         del self.owners[file_id]
         del self.file_list[file_id]
-        Log.print(b"File deleted: " + file_id)
+
+        Log.print(f"File deleted: {file_id.decode()}".encode())
         return arc4.Bool(True)
 
     @arc4.abimethod
     def delete_file_as_admin(self, file_id: Bytes) -> arc4.Bool:
-        """
-        Admin can delete any file.
-        """
+        """Admin can delete any file."""
         if Txn.sender != self.admin:
             return arc4.Bool(False)
 
@@ -107,34 +100,29 @@ class FileStorageContract(ARC4Contract):
             del self.files[file_id]
             del self.owners[file_id]
             del self.file_list[file_id]
-            Log.print(b"Admin deleted: " + file_id)
+
+            Log.print(f"Admin deleted: {file_id.decode()}".encode())
             return arc4.Bool(True)
         return arc4.Bool(False)
 
     @arc4.abimethod
     def get_owner(self, file_id: Bytes) -> Address:
-        """
-        Returns the owner's address of the given file.
-        """
-        return self.owners[file_id]
+        """Returns the owner's address of the given file."""
+        return self.owners.get(file_id, Address.zero())
 
     @arc4.abimethod
     def file_exists(self, file_id: Bytes) -> arc4.Bool:
-        """
-        Check if a file exists.
-        """
+        """Check if a file exists."""
         return arc4.Bool(file_id in self.files)
 
     @arc4.abimethod
     def can_access(self, file_id: Bytes, requester: Address) -> arc4.Bool:
-        """
-        Simple access control: owner or public.
-        Assumes permissions are either 'public' or comma-separated list of addresses.
-        """
+        """Simple access control: owner or public or explicitly listed addresses."""
         if file_id not in self.files:
             return arc4.Bool(False)
 
-        if requester == self.owners[file_id]:
+        owner = self.owners[file_id]
+        if requester == owner:
             return arc4.Bool(True)
 
         metadata = self.files[file_id]
@@ -143,8 +131,8 @@ class FileStorageContract(ARC4Contract):
         if b"public" in permissions:
             return arc4.Bool(True)
 
-        # Check if requester is explicitly listed
-        if requester.encode() in permissions:
+        # Check if requester is explicitly listed (addresses separated by commas)
+        if requester.encode() in permissions.split(b","):
             return arc4.Bool(True)
 
         return arc4.Bool(False)
